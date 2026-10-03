@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel RFID — Controle de Acesso</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-4 md:p-8 font-sans">
+  <div class="max-w-5xl mx-auto space-y-6">
+
+    <!-- Cabeçalho -->
+    <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+      <div>
+        <h1 class="text-2xl font-bold text-sky-400">Controle de Portas RFID</h1>
+        <p class="text-sm text-slate-400">Sala ativa: <span class="font-mono text-white font-semibold">E04</span></p>
+      </div>
+      <div id="statusBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800 text-xs text-slate-400 w-fit">
+        <span class="w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse"></span>
+        <span>Conectando ao Firebase...</span>
+      </div>
+    </header>
+
+    <!-- Comandos Remotos -->
+    <section class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <button id="btnOpen" class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition p-4 rounded-xl font-medium shadow-lg flex flex-col items-center justify-center gap-2 cursor-pointer">
+        <span class="text-2xl">🔓</span>
+        <span>Abrir Porta</span>
+      </button>
+
+      <button id="btnToggleAcc" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition p-4 rounded-xl font-medium shadow-lg flex flex-col items-center justify-center gap-2 cursor-pointer">
+        <span class="text-2xl">♿</span>
+        <span id="txtToggleAcc">Modo Acessível</span>
+      </button>
+
+      <button id="btnSync" class="bg-slate-700 hover:bg-slate-600 active:scale-95 transition p-4 rounded-xl font-medium shadow-lg flex flex-col items-center justify-center gap-2 cursor-pointer">
+        <span class="text-2xl">🔄</span>
+        <span>Sincronizar Cache</span>
+      </button>
+    </section>
+
+    <!-- Monitor de Acessos Recentes -->
+    <section class="bg-slate-800/80 rounded-xl p-4 shadow-xl border border-slate-700">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-slate-200">Histórico de Acessos em Tempo Real</h2>
+        <span class="text-xs text-slate-400 font-mono">Últimos 10 registros</span>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm border-collapse border border-slate-700">
+          <thead>
+            <tr class="bg-slate-700/50 text-slate-300 border-b border-slate-700">
+              <th class="py-2.5 px-3 text-center border border-slate-700 font-medium">Data / Hora</th>
+              <th class="py-2.5 px-3 text-center border border-slate-700 font-medium">Cartão UID</th>
+              <th class="py-2.5 px-3 text-center border border-slate-700 font-medium">Identificação</th>
+              <th class="py-2.5 px-3 text-center border border-slate-700 font-medium">Acesso</th>
+            </tr>
+          </thead>
+          <tbody id="logsTableBody" class="divide-y divide-slate-700/50">
+            <tr>
+              <td colspan="4" class="text-center py-6 text-slate-500 border border-slate-700">Nenhum evento registrado ainda.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Firebase Web SDK v9 -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+    import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+    const firebaseConfig = {
+      databaseURL: "https://rfid-controle-acesso-ifpe-default-rtdb.firebaseio.com"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db  = getDatabase(app);
+    const DOOR_ID = "E04";
+
+    const statusBadge = document.getElementById("statusBadge");
+    const txtToggleAcc = document.getElementById("txtToggleAcc");
+    const logsTableBody = document.getElementById("logsTableBody");
+
+    let currentAccMode = false;
+
+    // Escuta o status do ESP32 em tempo real
+    onValue(ref(db, `doors/${DOOR_ID}/status`), (snap) => {
+      const val = snap.val();
+      if (!val) {
+        statusBadge.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-slate-500"></span><span class="text-slate-400">Sem status inicial</span>`;
+        return;
+      }
+
+      currentAccMode = !!val.accessibleMode;
+      txtToggleAcc.textContent = currentAccMode ? "Desativar Modo Acessível" : "Ativar Modo Acessível";
+
+      const now = Math.floor(Date.now() / 1000);
+      const isOnline = val.online && (now - (val.lastSeen || 0) < 60);
+
+      if (isOnline) {
+        statusBadge.innerHTML = `
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span class="text-emerald-400 font-medium">ESP32 Online ${currentAccMode ? '• Modo Acessível' : ''}</span>
+        `;
+      } else {
+        statusBadge.innerHTML = `
+          <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+          <span class="text-rose-400 font-medium">ESP32 Offline</span>
+        `;
+      }
+    });
+
+    // Escuta a fila de logs da sala
+    onValue(ref(db, `logs/${DOOR_ID}`), (snap) => {
+      const data = snap.val();
+      if (!data) {
+        logsTableBody.innerHTML = `
+          <tr>
+            <td colspan="4" class="text-center py-6 text-slate-500 border border-slate-700">Aguardando leituras ou registros...</td>
+          </tr>
+        `;
+        return;
+      }
+
+      const list = Object.values(data).sort((a, b) => (b.unixTs || 0) - (a.unixTs || 0)).slice(0, 10);
+      
+      logsTableBody.innerHTML = list.map(item => `
+        <tr class="hover:bg-slate-700/30">
+          <td class="py-2 px-3 text-center text-slate-400 font-mono text-xs border border-slate-700">${item.datetime || '-'}</td>
+          <td class="py-2 px-3 text-center font-mono border border-slate-700">${item.cardID || '-'}</td>
+          <td class="py-2 px-3 text-center font-medium ${item.authorized ? 'text-white' : 'text-rose-300'} border border-slate-700">${item.userName || 'Desconhecido'}</td>
+          <td class="py-2 px-3 text-center border border-slate-700">
+            <span class="px-2 py-0.5 rounded text-xs ${item.authorized ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'}">
+              ${item.authorized ? 'Concedido' : 'Negado'}
+            </span>
+          </td>
+        </tr>
+      `).join('');
+    });
+
+    // Comandos dos Botões
+    document.getElementById("btnOpen").addEventListener("click", () => {
+      update(ref(db, `doors/${DOOR_ID}/commands`), { openDoor: true });
+    });
+
+    document.getElementById("btnToggleAcc").addEventListener("click", () => {
+      update(ref(db, `doors/${DOOR_ID}/commands`), { setAccessibleMode: currentAccMode ? "off" : "on" });
+    });
+
+    document.getElementById("btnSync").addEventListener("click", () => {
+      update(ref(db, `doors/${DOOR_ID}/commands`), { forceSync: true });
+    });
+  </script>
+</body>
+</html>
