@@ -121,7 +121,7 @@
           </label>
           <span class="text-xs font-medium text-slate-500">Destravada</span>
         </div>
-        <span id="label-status-trava" class="text-xs font-semibold text-slate-600">Estado: Consultando...</span>
+        <span id="label-status-trava" class="text-xs font-semibold text-slate-600">Estado: TRAVADA</span>
       </div>
 
       <!-- Card 3: Modo Normalmente Aberto -->
@@ -175,7 +175,7 @@
           </thead>
           <tbody id="corpo-tabela-tags">
             <tr>
-              <td colspan="4" class="border border-slate-300 px-4 py-3 text-center text-slate-400">Carregando tags cadastradas...</td>
+              <td colspan="4" class="border border-slate-300 px-4 py-3 text-center text-slate-400">Carregando tags...</td>
             </tr>
           </tbody>
         </table>
@@ -224,14 +224,14 @@
           <thead>
             <tr class="bg-slate-100">
               <th class="border border-slate-300 px-4 py-2 text-center text-xs font-bold text-slate-600 uppercase">Data / Hora</th>
-              <th class="border border-slate-300 px-4 py-2 text-center text-xs font-bold text-slate-600 uppercase">UID da Tag</th>
-              <th class="border border-slate-300 px-4 py-2 text-center text-xs font-bold text-slate-600 uppercase">Usuário / Identificação</th>
+              <th class="border border-slate-300 px-4 py-2 text-center text-xs font-bold text-slate-600 uppercase">UID / Evento</th>
+              <th class="border border-slate-300 px-4 py-2 text-center text-xs font-bold text-slate-600 uppercase">Usuário / Detalhe</th>
               <th class="border border-slate-300 px-4 py-2 text-center text-xs font-bold text-slate-600 uppercase">Status</th>
             </tr>
           </thead>
           <tbody id="corpo-tabela">
             <tr>
-              <td colspan="4" class="border border-slate-300 px-4 py-4 text-center text-slate-400">Nenhum registro carregado ainda.</td>
+              <td colspan="4" class="border border-slate-300 px-4 py-4 text-center text-slate-400">Carregando histórico...</td>
             </tr>
           </tbody>
         </table>
@@ -313,38 +313,39 @@
 
     btnLogout.addEventListener('click', () => auth.signOut());
 
-    // 2. LISTENERS DO FIREBASE
+    // 2. LISTENERS DO FIREBASE (ALINHADOS COM O SEU BANCO)
     function iniciarOuvintes() {
-      // Status de Conexão do ESP32
-      db.ref('doors/E04/status').on('value', snap => {
-        const val = snap.val();
-        const isOnline = (val === "online" || val === true || val === 1 || (val && val.online === true));
+      // Status de Conexão do ESP32: doors/E04/status/online
+      db.ref('doors/E04/status/online').on('value', snap => {
+        const isOnline = snap.val() === true;
         atualizarStatusEsp32(isOnline);
       });
 
-      // Interruptor: Estado da trava
-      db.ref('doors/E04/trava').on('value', snap => {
-        const aberta = snap.val() === 1 || snap.val() === true;
+      // Status da Trava via commands/openDoor
+      db.ref('doors/E04/commands/openDoor').on('value', snap => {
+        const aberta = snap.val() === true;
         switchTrava.checked = aberta;
         labelStatusTrava.innerText = aberta ? "Estado: DESTRAVADA" : "Estado: TRAVADA";
         labelStatusTrava.className = `text-xs font-bold ${aberta ? 'text-emerald-600' : 'text-slate-600'}`;
       });
 
-      // Interruptor: Modo Normalmente Aberto
-      db.ref('doors/E04/commands/modoAberto').on('value', snap => {
-        const modoAberto = snap.val() === 1 || snap.val() === true;
+      // Modo Normalmente Aberto: doors/E04/status/accessibleMode
+      db.ref('doors/E04/status/accessibleMode').on('value', snap => {
+        const modoAberto = snap.val() === true;
         switchModoAberto.checked = modoAberto;
         labelModoAberto.innerText = modoAberto ? "Livre" : "Bloqueado";
         labelModoAberto.className = `text-xs font-bold ${modoAberto ? 'text-emerald-600' : 'text-slate-600'}`;
       });
 
-      // Tags Cadastradas
+      // Tags Cadastradas: doors/E04/authorized
       db.ref('doors/E04/authorized').on('value', snap => {
         renderizarTabelaTags(snap.val());
       });
 
-      // Histórico
-      carregarLogs();
+      // Histórico de Acessos em tempo real: logs/E04
+      db.ref('logs/E04').limitToLast(50).on('value', snap => {
+        processarLogs(snap.val());
+      });
     }
 
     function atualizarStatusEsp32(isOnline) {
@@ -406,7 +407,6 @@
       });
     }
 
-    // Cadastro de Tag
     formTag.addEventListener('submit', (e) => {
       e.preventDefault();
       const uidFormatada = inputTagUid.value.trim().toUpperCase().replace(/\s+/g, '');
@@ -430,63 +430,89 @@
       });
     });
 
-    // 4. HISTÓRICO DE ACESSOS (LOGS)
-    function carregarLogs() {
-      db.ref('doors/E04/logs').limitToLast(50).once('value', snap => {
-        const dados = snap.val();
-        corpoTabela.innerHTML = '';
-        dadosParaExportar = [];
+    // 4. HISTÓRICO DE ACESSOS (CORRETO: logs/E04)
+    function processarLogs(dados) {
+      corpoTabela.innerHTML = '';
+      dadosParaExportar = [];
 
-        if (!dados) {
-          corpoTabela.innerHTML = `<tr><td colspan="4" class="border border-slate-300 px-4 py-4 text-center text-slate-400">Nenhum registro encontrado.</td></tr>`;
-          return;
+      if (!dados) {
+        corpoTabela.innerHTML = `<tr><td colspan="4" class="border border-slate-300 px-4 py-4 text-center text-slate-400">Nenhum registro encontrado em logs/E04.</td></tr>`;
+        return;
+      }
+
+      const chaves = Object.keys(dados).reverse();
+
+      chaves.forEach(chave => {
+        const item = dados[chave];
+        
+        let dataHora = "-";
+        let uid = "-";
+        let usuario = "-";
+        let status = "Registrado";
+        let corBadge = "bg-slate-100 text-slate-800";
+
+        // Trata os nós no formato "20261004_112729_6355CBD9"
+        if (typeof item === 'object' && item !== null) {
+          dataHora = item.timestamp || item.dateTime || item.time || chave.substring(0, 15);
+          uid = item.uid || item.id || item.tag || (chave.split('_')[2] || chave);
+          usuario = item.name || item.usuario || item.user || 'Não Cadastrado';
+          
+          if (item.authorized === true || item.autorizado === true || item.granted === true) {
+            status = "Autorizado";
+            corBadge = "bg-emerald-100 text-emerald-800";
+          } else if (item.authorized === false || item.autorizado === false) {
+            status = "Negado";
+            corBadge = "bg-red-100 text-red-800";
+          } else if (chave.includes("REMOTE")) {
+            status = "Comando Remoto";
+            corBadge = "bg-blue-100 text-blue-800";
+            usuario = "Painel / Web";
+          }
+        } else {
+          // Se for valor primitivo
+          dataHora = chave.substring(0, 15);
+          uid = chave;
+          usuario = String(item);
         }
 
-        const registros = Object.keys(dados).map(key => dados[key]).reverse();
-
-        registros.forEach(item => {
-          const dataHora = item.timestamp || item.dataHora || item.time || '-';
-          const uid = item.uid || item.id || '-';
-          const usuario = item.name || item.usuario || item.nome || 'Não Cadastrado';
-          const autorizado = item.autorizado === true || item.status === "Autorizado" || item.authorized === true;
-          const status = autorizado ? 'Autorizado' : 'Negado';
-          const corBadge = autorizado ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800';
-
-          dadosParaExportar.push({
-            DataHora: dataHora,
-            UID: uid,
-            Usuario: usuario,
-            Status: status
-          });
-
-          const tr = document.createElement('tr');
-          tr.className = "hover:bg-slate-50";
-          tr.innerHTML = `
-            <td class="border border-slate-300 px-4 py-2 text-center text-xs text-slate-600">${dataHora}</td>
-            <td class="border border-slate-300 px-4 py-2 text-center font-mono text-xs text-slate-700">${uid}</td>
-            <td class="border border-slate-300 px-4 py-2 text-center text-xs font-semibold text-slate-800">${usuario}</td>
-            <td class="border border-slate-300 px-4 py-2 text-center">
-              <span class="inline-block px-2 py-0.5 rounded text-[11px] font-bold ${corBadge}">${status}</span>
-            </td>
-          `;
-          corpoTabela.appendChild(tr);
+        dadosParaExportar.push({
+          DataHora: dataHora,
+          UID: uid,
+          Usuario: usuario,
+          Status: status
         });
+
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50";
+        tr.innerHTML = `
+          <td class="border border-slate-300 px-4 py-2 text-center text-xs text-slate-600">${dataHora}</td>
+          <td class="border border-slate-300 px-4 py-2 text-center font-mono text-xs text-slate-700">${uid}</td>
+          <td class="border border-slate-300 px-4 py-2 text-center text-xs font-semibold text-slate-800">${usuario}</td>
+          <td class="border border-slate-300 px-4 py-2 text-center">
+            <span class="inline-block px-2 py-0.5 rounded text-[11px] font-bold ${corBadge}">${status}</span>
+          </td>
+        `;
+        corpoTabela.appendChild(tr);
       });
     }
 
     // 5. INTERRUPTORES (AÇÕES)
+    // Trava: doors/E04/commands/openDoor
     switchTrava.addEventListener('change', () => {
       const abrir = switchTrava.checked;
-      db.ref('doors/E04/commands/unlock').set(abrir)
+      db.ref('doors/E04/commands/openDoor').set(abrir)
         .catch(err => {
           alert("Erro ao acionar trava: " + err.message);
           switchTrava.checked = !abrir;
         });
     });
 
+    // Modo Acessível: doors/E04/commands/setAccessibleMode
     switchModoAberto.addEventListener('change', () => {
       const ativar = switchModoAberto.checked;
-      db.ref('doors/E04/commands/modoAberto').set(ativar)
+      // Define "toggle" ou true/false conforme aceito pelo firmware
+      const valor = ativar ? "enable" : "disable";
+      db.ref('doors/E04/commands/setAccessibleMode').set(valor)
         .catch(err => {
           alert("Erro ao alterar modo: " + err.message);
           switchModoAberto.checked = !ativar;
@@ -494,23 +520,37 @@
     });
 
     // 6. BOTÕES DA TABELA
+    // Sincronizar Cache: envia forceSync = true para o ESP32 e recarrega os dados
     btnSync.addEventListener('click', () => {
       btnSync.disabled = true;
       btnSync.classList.add('opacity-50');
-      carregarLogs();
-      db.ref('doors/E04/authorized').once('value', snap => {
-        renderizarTabelaTags(snap.val());
-      });
-      setTimeout(() => {
+
+      // 1. Dispara o sinal de forceSync no ESP32
+      db.ref('doors/E04/commands/forceSync').set(true);
+
+      // 2. Força recarga imediata dos logs
+      db.ref('logs/E04').limitToLast(50).once('value', snap => {
+        processarLogs(snap.val());
+        // Desarma o forceSync após 2 segundos
+        setTimeout(() => {
+          db.ref('doors/E04/commands/forceSync').set(false);
+          btnSync.disabled = false;
+          btnSync.classList.remove('opacity-50');
+        }, 1500);
+      }).catch(err => {
+        alert("Erro ao sincronizar: " + err.message);
         btnSync.disabled = false;
         btnSync.classList.remove('opacity-50');
-      }, 1000);
+      });
     });
 
+    // Limpar Histórico: limpa logs/E04
     btnLimpar.addEventListener('click', () => {
-      if (confirm("Atenção: Tem certeza de que deseja apagar todos os registros do histórico?")) {
-        db.ref('doors/E04/logs').remove()
-          .then(() => carregarLogs())
+      if (confirm("Atenção: Tem certeza de que deseja apagar todos os registros do histórico em logs/E04?")) {
+        db.ref('logs/E04').remove()
+          .then(() => {
+            corpoTabela.innerHTML = `<tr><td colspan="4" class="border border-slate-300 px-4 py-4 text-center text-slate-400">Histórico limpo com sucesso.</td></tr>`;
+          })
           .catch(err => alert("Erro ao limpar histórico: " + err.message));
       }
     });
@@ -523,7 +563,7 @@
       }
 
       let csvContent = "\uFEFF"; // UTF-8 BOM
-      csvContent += "Data/Hora;UID;Usuario;Status\r\n";
+      csvContent += "Data/Hora;UID/Evento;Usuario/Detalhe;Status\r\n";
 
       dadosParaExportar.forEach(row => {
         csvContent += `"${row.DataHora}";"${row.UID}";"${row.Usuario}";"${row.Status}"\r\n`;
