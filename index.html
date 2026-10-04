@@ -98,10 +98,20 @@
       </div>
     </header>
 
-    <!-- Cards de Controle e Interruptores -->
+    <!-- Cards de Monitoramento e Controles -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       
-      <!-- Card 1: Interruptor Abrir Porta -->
+      <!-- Card 1: Status de Conexão do ESP32 -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-between">
+        <span class="text-xs font-bold uppercase text-slate-500">ESP32 Conexão</span>
+        <div class="my-4 flex items-center gap-2">
+          <span id="dot-esp32" class="w-3.5 h-3.5 rounded-full bg-slate-400"></span>
+          <span id="status-esp32" class="text-lg font-bold text-slate-600">Verificando...</span>
+        </div>
+        <span id="ping-esp32" class="text-xs text-slate-400">Heartbeat em tempo real</span>
+      </div>
+
+      <!-- Card 2: Interruptor da Trava -->
       <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-between">
         <span class="text-xs font-bold uppercase text-slate-500">Acionamento da Trava</span>
         <div class="my-4 flex items-center gap-3">
@@ -115,9 +125,9 @@
         <span id="label-status-trava" class="text-xs font-semibold text-slate-600">Estado: Consultando...</span>
       </div>
 
-      <!-- Card 2: Modo Normalmente Aberto -->
+      <!-- Card 3: Modo Normalmente Aberto -->
       <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-between">
-        <span class="text-xs font-bold uppercase text-slate-500">Modo Normalmente Aberto</span>
+        <span class="text-xs font-bold uppercase text-slate-500">Modo Livre (Normalmente Aberto)</span>
         <div class="my-4 flex items-center gap-3">
           <span class="text-xs font-medium text-slate-500">Desligado</span>
           <label class="switch">
@@ -129,29 +139,20 @@
         <span id="label-modo-aberto" class="text-xs font-semibold text-slate-600">Bloqueio Normal Ativo</span>
       </div>
 
-      <!-- Card 3: Sensor Físico da Porta -->
-      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-between">
-        <span class="text-xs font-bold uppercase text-slate-500">Sensor Físico da Porta</span>
-        <div class="my-4">
-          <span id="status-porta" class="text-lg font-bold text-slate-700">Aguardando sensor...</span>
-        </div>
-        <span class="text-xs text-slate-400">Leitura direta do fim de curso</span>
-      </div>
-
     </div>
 
-    <!-- 5. ÁREA DE CADASTRO DE TAGS RFID -->
+    <!-- GERENCIAR TAGS RFID -->
     <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
       <div class="mb-4">
         <h2 class="text-lg font-bold text-slate-800">Gerenciar Tags e Usuários</h2>
-        <p class="text-xs text-slate-500">Cadastre ou remova credenciais sem necessidade de acessar o painel do Firebase</p>
+        <p class="text-xs text-slate-500">Cadastre ou remova credenciais de acesso gravadas no banco</p>
       </div>
 
       <!-- Formulário de Cadastro -->
       <form id="form-tag" class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
         <div>
           <label class="block text-xs font-bold text-slate-600 uppercase mb-1">UID da Tag RFID</label>
-          <input type="text" id="tag-uid" required placeholder="Ex: 4A 2B 11 C9" class="w-full px-3 py-2 border border-slate-300 rounded text-sm uppercase text-center font-mono focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input type="text" id="tag-uid" required placeholder="Ex: 4A2B11C9 ou 4A 2B 11 C9" class="w-full px-3 py-2 border border-slate-300 rounded text-sm uppercase text-center font-mono focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Nome do Usuário</label>
@@ -159,7 +160,7 @@
         </div>
         <div class="flex items-end">
           <button type="submit" id="btn-salvar-tag" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded text-sm shadow transition">
-            Cadastrar / Atualizar Tag
+            Cadastrar / Salvar Tag
           </button>
         </div>
       </form>
@@ -176,7 +177,7 @@
           </thead>
           <tbody id="corpo-tabela-tags">
             <tr>
-              <td colspan="3" class="border border-slate-300 px-4 py-3 text-center text-slate-400">Nenhuma tag cadastrada.</td>
+              <td colspan="3" class="border border-slate-300 px-4 py-3 text-center text-slate-400">Carregando tags cadastradas...</td>
             </tr>
           </tbody>
         </table>
@@ -193,7 +194,7 @@
         
         <!-- Botões de Ação da Tabela -->
         <div class="flex flex-wrap items-center gap-2">
-          <!-- 3. Sincronizar Cache -->
+          <!-- Sincronizar Cache -->
           <button id="btn-sync" class="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded border border-slate-300 transition">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
@@ -201,7 +202,7 @@
             Sincronizar Cache
           </button>
 
-          <!-- 4. Limpar Histórico -->
+          <!-- Limpar Histórico -->
           <button id="btn-limpar" class="flex items-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold rounded border border-red-200 transition">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
@@ -243,7 +244,6 @@
 
   <!-- ================= LÓGICA JAVASCRIPT ================= -->
   <script>
-    // 1. CONFIGURAÇÃO OFICIAL DO SEU PROJETO NO FIREBASE
     const firebaseConfig = {
       apiKey: "AIzaSyCwUgh17G0S-2nF3Sgllei0M7HpdaQ-ke8",
       authDomain: "rfid-controle-acesso-ifpe.firebaseapp.com",
@@ -266,12 +266,16 @@
     const btnLogout = document.getElementById('btn-logout');
     const userDisplay = document.getElementById('user-display');
     
+    // Status Conexão ESP32
+    const statusEsp32 = document.getElementById('status-esp32');
+    const dotEsp32 = document.getElementById('dot-esp32');
+    const pingEsp32 = document.getElementById('ping-esp32');
+
     // Controles
     const switchTrava = document.getElementById('switch-trava');
     const labelStatusTrava = document.getElementById('label-status-trava');
     const switchModoAberto = document.getElementById('switch-modo-aberto');
     const labelModoAberto = document.getElementById('label-modo-aberto');
-    const statusPorta = document.getElementById('status-porta');
     
     // Tags e Logs
     const formTag = document.getElementById('form-tag');
@@ -285,7 +289,7 @@
 
     let dadosParaExportar = [];
 
-    // 2. AUTENTICAÇÃO
+    // 1. AUTENTICAÇÃO
     auth.onAuthStateChanged(user => {
       if (user) {
         loginContainer.classList.add('hidden');
@@ -312,9 +316,25 @@
 
     btnLogout.addEventListener('click', () => auth.signOut());
 
-    // 3. LISTENERS DO FIREBASE
+    // 2. LISTENERS DO FIREBASE
     function iniciarOuvintes() {
-      // 1. Interruptor: Estado da trava
+      // Status de Conexão do ESP32
+      db.ref('dispositivos/salaE04/online').on('value', snap => {
+        const isOnline = snap.val() === true || snap.val() === 1 || snap.val() === "online";
+        if (isOnline) {
+          statusEsp32.innerText = "ONLINE";
+          statusEsp32.className = "text-lg font-bold text-emerald-600";
+          dotEsp32.className = "w-3.5 h-3.5 rounded-full bg-emerald-500 animate-pulse";
+          pingEsp32.innerText = "ESP32 conectado";
+        } else {
+          statusEsp32.innerText = "OFFLINE";
+          statusEsp32.className = "text-lg font-bold text-red-600";
+          dotEsp32.className = "w-3.5 h-3.5 rounded-full bg-red-500";
+          pingEsp32.innerText = "Sem resposta do ESP32";
+        }
+      });
+
+      // Interruptor: Estado da trava
       db.ref('dispositivos/salaE04/trava').on('value', snap => {
         const aberta = snap.val() === 1 || snap.val() === true;
         switchTrava.checked = aberta;
@@ -322,7 +342,7 @@
         labelStatusTrava.className = `text-xs font-bold ${aberta ? 'text-emerald-600' : 'text-slate-600'}`;
       });
 
-      // 2. Interruptor: Modo Normalmente Aberto
+      // Interruptor: Modo Normalmente Aberto
       db.ref('dispositivos/salaE04/modoNormalmenteAberto').on('value', snap => {
         const modoAberto = snap.val() === 1 || snap.val() === true;
         switchModoAberto.checked = modoAberto;
@@ -330,44 +350,82 @@
         labelModoAberto.className = `text-xs font-bold ${modoAberto ? 'text-amber-600' : 'text-slate-600'}`;
       });
 
-      // Sensor da Porta
-      db.ref('dispositivos/salaE04/sensorPorta').on('value', snap => {
-        const aberta = snap.val() === 1 || snap.val() === true;
-        statusPorta.innerText = aberta ? "PORTA ABERTA" : "PORTA FECHADA";
-        statusPorta.className = `text-lg font-bold ${aberta ? 'text-blue-600' : 'text-slate-600'}`;
-      });
-
-      // Tags Cadastradas
+      // Ouvir Tags Cadastradas (Suporta nós no formato {nome: ...} ou texto direto)
       db.ref('dispositivos/salaE04/usuariosAutorizados').on('value', snap => {
-        const tags = snap.val();
-        corpoTabelaTags.innerHTML = '';
-        if (!tags) {
-          corpoTabelaTags.innerHTML = `<tr><td colspan="3" class="border border-slate-300 px-4 py-3 text-center text-slate-400">Nenhuma tag cadastrada.</td></tr>`;
-          return;
-        }
-
-        Object.keys(tags).forEach(uidKey => {
-          const item = tags[uidKey];
-          const nome = typeof item === 'object' ? item.nome : item;
-          const tr = document.createElement('tr');
-          tr.className = "hover:bg-slate-50";
-          tr.innerHTML = `
-            <td class="border border-slate-300 px-4 py-2 text-center font-mono text-xs font-semibold text-slate-700">${uidKey}</td>
-            <td class="border border-slate-300 px-4 py-2 text-center text-xs text-slate-800">${nome}</td>
-            <td class="border border-slate-300 px-4 py-2 text-center">
-              <button onclick="removerTag('${uidKey}')" class="px-2 py-1 bg-red-50 hover:bg-red-200 text-red-700 border border-red-300 text-[11px] font-bold rounded transition">
-                Excluir
-              </button>
-            </td>
-          `;
-          corpoTabelaTags.appendChild(tr);
-        });
+        renderizarTabelaTags(snap.val());
       });
 
-      // Histórico de Acessos
+      // Ouvir Logs em Tempo Real
       carregarLogs();
     }
 
+    // 3. RENDERIZAR E GERENCIAR TAGS
+    function renderizarTabelaTags(tags) {
+      corpoTabelaTags.innerHTML = '';
+      if (!tags) {
+        corpoTabelaTags.innerHTML = `<tr><td colspan="3" class="border border-slate-300 px-4 py-3 text-center text-slate-400">Nenhuma tag cadastrada.</td></tr>`;
+        return;
+      }
+
+      Object.keys(tags).forEach(uidKey => {
+        const item = tags[uidKey];
+        let nome = "Sem Nome";
+        if (typeof item === 'string') {
+          nome = item;
+        } else if (item && typeof item === 'object') {
+          nome = item.nome || item.usuario || JSON.stringify(item);
+        }
+
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50";
+        tr.innerHTML = `
+          <td class="border border-slate-300 px-4 py-2 text-center font-mono text-xs font-semibold text-slate-700">${uidKey}</td>
+          <td class="border border-slate-300 px-4 py-2 text-center text-xs text-slate-800">${nome}</td>
+          <td class="border border-slate-300 px-4 py-2 text-center">
+            <button data-uid="${uidKey}" class="btn-deletar-tag px-2 py-1 bg-red-50 hover:bg-red-200 text-red-700 border border-red-300 text-[11px] font-bold rounded transition">
+              Apagar
+            </button>
+          </td>
+        `;
+        corpoTabelaTags.appendChild(tr);
+      });
+
+      // Vincula os botões de apagar dinamicamente
+      document.querySelectorAll('.btn-deletar-tag').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const uid = btn.getAttribute('data-uid');
+          if (confirm(`Tem certeza que deseja apagar a tag UID: ${uid}?`)) {
+            db.ref('dispositivos/salaE04/usuariosAutorizados/' + uid).remove()
+              .catch(err => alert("Erro ao apagar tag: " + err.message));
+          }
+        });
+      });
+    }
+
+    // Cadastro de Tag
+    formTag.addEventListener('submit', (e) => {
+      e.preventDefault();
+      // Limpa pontuações e espaços para salvar uma chave consistente
+      const uidFormatada = inputTagUid.value.trim().toUpperCase().replace(/\s+/g, '');
+      const nome = inputTagNome.value.trim();
+
+      if (!uidFormatada || !nome) {
+        alert("Preencha o UID e o Nome.");
+        return;
+      }
+
+      db.ref('dispositivos/salaE04/usuariosAutorizados/' + uidFormatada).set({
+        nome: nome,
+        dataCadastro: new Date().toISOString()
+      }).then(() => {
+        inputTagUid.value = '';
+        inputTagNome.value = '';
+      }).catch(err => {
+        alert("Erro ao cadastrar tag: " + err.message);
+      });
+    });
+
+    // 4. HISTÓRICO DE ACESSOS (LOGS)
     function carregarLogs() {
       db.ref('dispositivos/salaE04/logs').limitToLast(50).once('value', snap => {
         const dados = snap.val();
@@ -382,11 +440,12 @@
         const registros = Object.keys(dados).map(key => dados[key]).reverse();
 
         registros.forEach(item => {
-          const dataHora = item.timestamp || '-';
+          const dataHora = item.timestamp || item.dataHora || '-';
           const uid = item.uid || '-';
-          const usuario = item.usuario || 'Não Cadastrado';
-          const status = item.autorizado ? 'Autorizado' : 'Negado';
-          const corBadge = item.autorizado ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800';
+          const usuario = item.usuario || item.nome || 'Não Cadastrado';
+          const autorizado = item.autorizado === true || item.status === "Autorizado";
+          const status = autorizado ? 'Autorizado' : 'Negado';
+          const corBadge = autorizado ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800';
 
           dadosParaExportar.push({
             DataHora: dataHora,
@@ -410,8 +469,7 @@
       });
     }
 
-    // 4. INTERRUPTORES (AÇÕES)
-    // Acionamento da Trava pelo interruptor
+    // 5. INTERRUPTORES (AÇÕES)
     switchTrava.addEventListener('change', () => {
       const abrir = switchTrava.checked;
       db.ref('dispositivos/salaE04/comandoAbertura').set(abrir)
@@ -421,7 +479,6 @@
         });
     });
 
-    // Modo Normalmente Aberto
     switchModoAberto.addEventListener('change', () => {
       const ativar = switchModoAberto.checked;
       db.ref('dispositivos/salaE04/modoNormalmenteAberto').set(ativar)
@@ -431,66 +488,36 @@
         });
     });
 
-    // 5. CADASTRO E EXCLUSÃO DE TAGS
-    formTag.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const uidLimpa = inputTagUid.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-      const nome = inputTagNome.value.trim();
-
-      if (!uidLimpa || !nome) {
-        alert("Preencha o UID e o Nome.");
-        return;
-      }
-
-      db.ref('dispositivos/salaE04/usuariosAutorizados/' + uidLimpa).set({
-        nome: nome,
-        cadastradoEm: new Date().toISOString()
-      }).then(() => {
-        inputTagUid.value = '';
-        inputTagNome.value = '';
-      }).catch(err => {
-        alert("Erro ao salvar tag: " + err.message);
-      });
-    });
-
-    window.removerTag = function(uid) {
-      if (confirm(`Deseja revogar o acesso da tag UID: ${uid}?`)) {
-        db.ref('dispositivos/salaE04/usuariosAutorizados/' + uid).remove()
-          .catch(err => alert("Erro ao excluir tag: " + err.message));
-      }
-    };
-
     // 6. BOTÕES DA TABELA
-    // Sincronizar Cache
     btnSync.addEventListener('click', () => {
       btnSync.disabled = true;
       btnSync.classList.add('opacity-50');
       carregarLogs();
+      db.ref('dispositivos/salaE04/usuariosAutorizados').once('value', snap => {
+        renderizarTabelaTags(snap.val());
+      });
       setTimeout(() => {
         btnSync.disabled = false;
         btnSync.classList.remove('opacity-50');
       }, 1000);
     });
 
-    // Limpar Histórico
     btnLimpar.addEventListener('click', () => {
       if (confirm("Atenção: Tem certeza de que deseja apagar todos os registros do histórico?")) {
         db.ref('dispositivos/salaE04/logs').remove()
-          .then(() => {
-            carregarLogs();
-          })
+          .then(() => carregarLogs())
           .catch(err => alert("Erro ao limpar histórico: " + err.message));
       }
     });
 
-    // Exportar para Planilha (.CSV)
+    // 7. EXPORTAÇÃO PARA PLANILHA (.CSV)
     btnExportar.addEventListener('click', () => {
       if (dadosParaExportar.length === 0) {
         alert("Não há dados carregados para exportar.");
         return;
       }
 
-      let csvContent = "\uFEFF"; // BOM UTF-8 para acentos corretos no Excel
+      let csvContent = "\uFEFF"; // UTF-8 BOM
       csvContent += "Data/Hora;UID;Usuario;Status\r\n";
 
       dadosParaExportar.forEach(row => {
