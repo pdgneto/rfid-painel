@@ -187,7 +187,7 @@
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
         <div>
           <h2 class="text-lg font-bold text-slate-800">Histórico de Acessos</h2>
-          <p class="text-xs text-slate-500">Registros em tempo real recebidos do ESP32</p>
+          <p class="text-xs text-slate-500">Registros em tempo real recebidos do ESP32 e acionamentos web</p>
         </div>
         
         <!-- Botões de Ação da Tabela -->
@@ -285,14 +285,16 @@
     const btnExportar = document.getElementById('btn-exportar');
 
     let dadosParaExportar = [];
-    let mapaTagsCadastradas = {}; // Mapa para cruzamento de UID -> Nome
+    let mapaTagsCadastradas = {};
+    let usuarioLogadoEmail = "Painel Web";
 
     // 1. AUTENTICAÇÃO
     auth.onAuthStateChanged(user => {
       if (user) {
+        usuarioLogadoEmail = user.email || "Painel Web";
         loginContainer.classList.add('hidden');
         dashboardContainer.classList.remove('hidden');
-        userDisplay.innerText = user.email;
+        userDisplay.innerText = usuarioLogadoEmail;
         iniciarOuvintes();
       } else {
         loginContainer.classList.remove('hidden');
@@ -338,10 +340,9 @@
         labelModoAberto.className = `text-xs font-bold ${modoAberto ? 'text-emerald-600' : 'text-slate-600'}`;
       });
 
-      // Tags cadastradas (atualiza o mapa para os logs também)
+      // Tags cadastradas
       db.ref('doors/E04/authorized').on('value', snap => {
         renderizarTabelaTags(snap.val());
-        // Recarrega os logs para atualizar os nomes se já estiverem em tela
         db.ref('logs/E04').limitToLast(50).once('value', sLogs => {
           processarLogs(sLogs.val());
         });
@@ -388,7 +389,6 @@
           nomeExibicao = item;
         }
 
-        // Popula o dicionário para cruzamento instantâneo
         mapaTagsCadastradas[uidExibicao] = nomeExibicao;
 
         const tr = document.createElement('tr');
@@ -440,7 +440,7 @@
       });
     });
 
-    // Função para formatar a string de data (ex: 20261004_112729 -> 04/10/2026 11:27:29)
+    // Funções utilitárias de Data
     function formatarDataChave(str) {
       if (!str || str.length < 15) return str;
       const ano = str.substring(0, 4);
@@ -452,7 +452,13 @@
       return `${dia}/${mes}/${ano} ${hora}:${min}:${seg}`;
     }
 
-    // 4. HISTÓRICO DE ACESSOS FORMATADO E CRUZADO
+    function gerarDataChaveAtual() {
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    }
+
+    // 4. HISTÓRICO DE ACESSOS
     function processarLogs(dados) {
       corpoTabela.innerHTML = '';
       dadosParaExportar = [];
@@ -473,24 +479,25 @@
         let status = "Registrado";
         let corBadge = "bg-slate-100 text-slate-800";
 
-        // Extrai as partes da chave: AAAAMMDD_HHMMSS_RESTO
         const partesChave = chave.split('_');
-        const restoChave = partesChave.slice(2).join('_'); // Pega tudo após o horário
+        const restoChave = partesChave.slice(2).join('_');
 
-        // 1. Identificação do Evento ou UID
+        // Verifica se há autor/usuário explícito gravado no nó
+        const operadorGravado = (item && (item.user || item.usuario || item.name || item.operador)) ? (item.user || item.usuario || item.name || item.operador) : null;
+
         if (restoChave === "REMOTE_ACC_ON") {
           uidOuEvento = "Modo Livre ON";
-          usuarioOuDetalhe = "Comando Painel Web";
+          usuarioOuDetalhe = operadorGravado ? `${operadorGravado} (Web)` : "Comando Painel Web";
           status = "Ativado";
           corBadge = "bg-amber-100 text-amber-800";
         } else if (restoChave === "REMOTE_ACC_OFF") {
           uidOuEvento = "Modo Livre OFF";
-          usuarioOuDetalhe = "Comando Painel Web";
+          usuarioOuDetalhe = operadorGravado ? `${operadorGravado} (Web)` : "Comando Painel Web";
           status = "Desativado";
           corBadge = "bg-slate-200 text-slate-700";
         } else if (restoChave === "REMOTE") {
           uidOuEvento = "Abertura Remota";
-          usuarioOuDetalhe = "Comando Painel Web";
+          usuarioOuDetalhe = operadorGravado ? `${operadorGravado} (Web)` : "Comando Painel Web";
           status = "Liberado";
           corBadge = "bg-blue-100 text-blue-800";
         } else if (restoChave === "T_INT_OPEN") {
@@ -499,10 +506,9 @@
           status = "Liberado";
           corBadge = "bg-purple-100 text-purple-800";
         } else {
-          // É uma leitura de TAG RFID (ex: 6355CBD9 ou B6C4893F)
+          // TAG RFID
           uidOuEvento = restoChave.toUpperCase();
           
-          // Cruza com as tags cadastradas
           if (mapaTagsCadastradas[uidOuEvento]) {
             usuarioOuDetalhe = mapaTagsCadastradas[uidOuEvento];
           } else if (item && (item.name || item.usuario || item.user)) {
@@ -511,7 +517,6 @@
             usuarioOuDetalhe = "Não Cadastrado";
           }
 
-          // Define status Autorizado ou Negado
           if (item && (item.authorized === true || item.autorizado === true)) {
             status = "Autorizado";
             corBadge = "bg-emerald-100 text-emerald-800";
@@ -519,7 +524,6 @@
             status = "Negado";
             corBadge = "bg-red-100 text-red-800";
           } else {
-            // Se o item não tem flag explícita, deduz pelo cadastro
             if (mapaTagsCadastradas[uidOuEvento]) {
               status = "Autorizado";
               corBadge = "bg-emerald-100 text-emerald-800";
@@ -530,7 +534,6 @@
           }
         }
 
-        // Se o log tiver campos internos explícitos de dataHora, usa se existirem
         if (typeof item === 'object' && item !== null && item.dateTime) {
           dataHoraFormatada = item.dateTime;
         }
@@ -556,10 +559,28 @@
       });
     }
 
-    // 5. INTERRUPTORES (AÇÕES)
+    // 5. INTERRUPTORES (GRAVAM O OPERADOR LOGADO NO HISTÓRICO)
     switchTrava.addEventListener('change', () => {
       const abrir = switchTrava.checked;
+      const timestampChave = gerarDataChaveAtual();
+
+      // 1. Envia comando ao ESP32
       db.ref('doors/E04/commands/openDoor').set(abrir)
+        .then(() => {
+          // 2. Se foi um comando de abertura, registra no histórico com o e-mail de quem acionou
+          if (abrir) {
+            db.ref(`logs/E04/${timestampChave}_REMOTE`).set({
+              authorized: true,
+              user: usuarioLogadoEmail,
+              type: "REMOTE_UNLOCK",
+              timestamp: Math.floor(Date.now() / 1000)
+            });
+
+            // Atualiza status de auditoria
+            db.ref('doors/E04/status/changedBy').set(usuarioLogadoEmail);
+            db.ref('doors/E04/status/changedAt').set(Math.floor(Date.now() / 1000));
+          }
+        })
         .catch(err => {
           alert("Erro ao acionar trava: " + err.message);
           switchTrava.checked = !abrir;
@@ -569,7 +590,24 @@
     switchModoAberto.addEventListener('change', () => {
       const ativar = switchModoAberto.checked;
       const valor = ativar ? "enable" : "disable";
+      const timestampChave = gerarDataChaveAtual();
+      const sufixoEvento = ativar ? "REMOTE_ACC_ON" : "REMOTE_ACC_OFF";
+
+      // 1. Envia comando ao ESP32
       db.ref('doors/E04/commands/setAccessibleMode').set(valor)
+        .then(() => {
+          // 2. Registra a mudança de modo no histórico com o e-mail de quem acionou
+          db.ref(`logs/E04/${timestampChave}_${sufixoEvento}`).set({
+            authorized: true,
+            user: usuarioLogadoEmail,
+            type: sufixoEvento,
+            timestamp: Math.floor(Date.now() / 1000)
+          });
+
+          // Atualiza status de auditoria
+          db.ref('doors/E04/status/changedBy').set(usuarioLogadoEmail);
+          db.ref('doors/E04/status/changedAt').set(Math.floor(Date.now() / 1000));
+        })
         .catch(err => {
           alert("Erro ao alterar modo: " + err.message);
           switchModoAberto.checked = !ativar;
