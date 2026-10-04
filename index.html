@@ -12,14 +12,55 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  
+  <style>
+    /* Estilização para interruptor (Toggle Switch) */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 52px;
+      height: 28px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #cbd5e1;
+      transition: .3s;
+      border-radius: 28px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    input:checked + .slider {
+      background-color: #059669;
+    }
+    input:checked + .slider:before {
+      transform: translateX(24px);
+    }
+  </style>
 </head>
 <body class="bg-slate-100 min-h-screen text-slate-800 font-sans flex flex-col items-center p-4">
 
   <!-- ================= TELA DE LOGIN ================= -->
   <div id="login-container" class="w-full max-w-md bg-white p-8 rounded-xl shadow-lg border border-slate-200 mt-16">
     <div class="text-center mb-6">
-      <h1 class="text-2xl font-bold text-slate-900">Sala E04</h1>
-      <p class="text-sm text-slate-500">Sistema de Controle de Acesso</p>
+      <h1 class="text-2xl font-bold text-slate-900">Controle de acesso - Sala E04</h1>
+      <p class="text-sm text-slate-500">Autenticação de Administrador</p>
     </div>
     
     <div id="login-error" class="hidden mb-4 p-3 bg-red-100 border border-red-300 text-red-700 text-xs rounded text-center"></div>
@@ -42,43 +83,107 @@
   <!-- ================= PAINEL PRINCIPAL ================= -->
   <div id="dashboard-container" class="hidden w-full max-w-5xl space-y-6">
     
-    <!-- Barra Superior -->
-    <header class="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-      <div>
-        <h1 class="text-xl font-bold text-slate-900">Monitoramento & Acesso - Sala E04</h1>
-        <span id="user-display" class="text-xs text-slate-500">Conectado</span>
+    <!-- Topo da Dashboard -->
+    <header class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+      <div class="flex justify-between items-center">
+        <div>
+          <h1 class="text-2xl font-bold text-slate-900">Controle de acesso - Sala E04</h1>
+          <p class="text-xs text-slate-500 mt-1">
+            Usuário conectado: <span id="user-display" class="font-semibold text-slate-700">...</span>
+          </p>
+        </div>
+        <button id="btn-logout" class="px-4 py-2 bg-slate-200 hover:bg-red-50 hover:text-red-700 text-slate-700 text-xs font-bold rounded transition border border-slate-300">
+          Sair
+        </button>
       </div>
-      <button id="btn-logout" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded transition">
-        Sair
-      </button>
     </header>
 
-    <!-- Cards de Monitoramento e Ações -->
+    <!-- Cards de Controle e Interruptores -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       
-      <!-- Card Status Trava -->
-      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center">
-        <span class="text-xs font-semibold uppercase text-slate-400">Estado da Trava</span>
-        <span id="status-trava" class="text-xl font-bold mt-2 text-slate-700">Aguardando...</span>
+      <!-- Card 1: Interruptor Abrir Porta -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-between">
+        <span class="text-xs font-bold uppercase text-slate-500">Acionamento da Trava</span>
+        <div class="my-4 flex items-center gap-3">
+          <span class="text-xs font-medium text-slate-500">Travada</span>
+          <label class="switch">
+            <input type="checkbox" id="switch-trava" />
+            <span class="slider"></span>
+          </label>
+          <span class="text-xs font-medium text-slate-500">Destravada</span>
+        </div>
+        <span id="label-status-trava" class="text-xs font-semibold text-slate-600">Estado: Consultando...</span>
       </div>
 
-      <!-- Card Status Sensor Porta -->
-      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center">
-        <span class="text-xs font-semibold uppercase text-slate-400">Sensor da Porta</span>
-        <span id="status-porta" class="text-xl font-bold mt-2 text-slate-700">Aguardando...</span>
+      <!-- Card 2: Modo Normalmente Aberto -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-between">
+        <span class="text-xs font-bold uppercase text-slate-500">Modo Normalmente Aberto</span>
+        <div class="my-4 flex items-center gap-3">
+          <span class="text-xs font-medium text-slate-500">Desligado</span>
+          <label class="switch">
+            <input type="checkbox" id="switch-modo-aberto" />
+            <span class="slider"></span>
+          </label>
+          <span class="text-xs font-medium text-slate-500">Ativado</span>
+        </div>
+        <span id="label-modo-aberto" class="text-xs font-semibold text-slate-600">Bloqueio Normal Ativo</span>
       </div>
 
-      <!-- Card Comando Remoto -->
-      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center">
-        <span class="text-xs font-semibold uppercase text-slate-400">Abertura Remota</span>
-        <button id="btn-abrir" class="mt-2 w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded shadow transition text-sm">
-          Liberar Trava (5s)
-        </button>
+      <!-- Card 3: Sensor Físico da Porta -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-between">
+        <span class="text-xs font-bold uppercase text-slate-500">Sensor Físico da Porta</span>
+        <div class="my-4">
+          <span id="status-porta" class="text-lg font-bold text-slate-700">Aguardando sensor...</span>
+        </div>
+        <span class="text-xs text-slate-400">Leitura direta do fim de curso</span>
       </div>
 
     </div>
 
-    <!-- Seção da Tabela com Exportação -->
+    <!-- 5. ÁREA DE CADASTRO DE TAGS RFID -->
+    <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+      <div class="mb-4">
+        <h2 class="text-lg font-bold text-slate-800">Gerenciar Tags e Usuários</h2>
+        <p class="text-xs text-slate-500">Cadastre ou remova credenciais sem necessidade de acessar o painel do Firebase</p>
+      </div>
+
+      <!-- Formulário de Cadastro -->
+      <form id="form-tag" class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
+        <div>
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">UID da Tag RFID</label>
+          <input type="text" id="tag-uid" required placeholder="Ex: 4A 2B 11 C9" class="w-full px-3 py-2 border border-slate-300 rounded text-sm uppercase text-center font-mono focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Nome do Usuário</label>
+          <input type="text" id="tag-nome" required placeholder="Ex: Paulo D'Avila" class="w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <div class="flex items-end">
+          <button type="submit" id="btn-salvar-tag" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded text-sm shadow transition">
+            Cadastrar / Atualizar Tag
+          </button>
+        </div>
+      </form>
+
+      <!-- Tabela de Tags Cadastradas -->
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse border border-slate-300 text-sm">
+          <thead>
+            <tr class="bg-slate-100">
+              <th class="border border-slate-300 px-4 py-2 text-center text-xs font-bold text-slate-600 uppercase">UID Registrada</th>
+              <th class="border border-slate-300 px-4 py-2 text-center text-xs font-bold text-slate-600 uppercase">Nome Associado</th>
+              <th class="border border-slate-300 px-4 py-2 text-center text-xs font-bold text-slate-600 uppercase">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="corpo-tabela-tags">
+            <tr>
+              <td colspan="3" class="border border-slate-300 px-4 py-3 text-center text-slate-400">Nenhuma tag cadastrada.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- HISTÓRICO DE ACESSOS -->
     <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
         <div>
@@ -86,22 +191,41 @@
           <p class="text-xs text-slate-500">Registros em tempo real recebidos do ESP32</p>
         </div>
         
-        <!-- Botão Exportar Planilha -->
-        <button id="btn-exportar" class="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded shadow transition">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-          </svg>
-          Exportar para Planilha (.csv)
-        </button>
+        <!-- Botões de Ação da Tabela -->
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- 3. Sincronizar Cache -->
+          <button id="btn-sync" class="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded border border-slate-300 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            Sincronizar Cache
+          </button>
+
+          <!-- 4. Limpar Histórico -->
+          <button id="btn-limpar" class="flex items-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold rounded border border-red-200 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+            </svg>
+            Limpar Histórico
+          </button>
+
+          <!-- Exportar Planilha -->
+          <button id="btn-exportar" class="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded transition shadow">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+            </svg>
+            Exportar para Planilha (.csv)
+          </button>
+        </div>
       </div>
 
-      <!-- Tabela com bordas definidas e conteúdo centralizado -->
+      <!-- Tabela de Histórico -->
       <div class="overflow-x-auto">
         <table id="tabela-acessos" class="w-full border-collapse border border-slate-300 text-sm">
           <thead>
             <tr class="bg-slate-100">
               <th class="border border-slate-300 px-4 py-2 text-center text-xs font-bold text-slate-600 uppercase">Data / Hora</th>
-              <th class="border border-slate-300 px-4 py-2 text-center text-xs font-bold text-slate-600 uppercase">UID do Cartão / Tag</th>
+              <th class="border border-slate-300 px-4 py-2 text-center text-xs font-bold text-slate-600 uppercase">UID da Tag</th>
               <th class="border border-slate-300 px-4 py-2 text-center text-xs font-bold text-slate-600 uppercase">Usuário / Identificação</th>
               <th class="border border-slate-300 px-4 py-2 text-center text-xs font-bold text-slate-600 uppercase">Status</th>
             </tr>
@@ -119,16 +243,16 @@
 
   <!-- ================= LÓGICA JAVASCRIPT ================= -->
   <script>
-    // 1. CONFIGURAÇÃO DO FIREBASE (Insira os dados do seu Console)
+    // 1. CONFIGURAÇÃO OFICIAL DO SEU PROJETO NO FIREBASE
     const firebaseConfig = {
-  apiKey: "AIzaSyCwUgh17G0S-2nF3Sgllei0M7HpdaQ-ke8",
-  authDomain: "rfid-controle-acesso-ifpe.firebaseapp.com",
-  databaseURL: "https://rfid-controle-acesso-ifpe-default-rtdb.firebaseio.com",
-  projectId: "rfid-controle-acesso-ifpe",
-  storageBucket: "rfid-controle-acesso-ifpe.firebasestorage.app",
-  messagingSenderId: "84634333431",
-  appId: "1:84634333431:web:cc43a8c95ddf266bc763f2"
-};
+      apiKey: "AIzaSyCwUgh17G0S-2nF3Sgllei0M7HpdaQ-ke8",
+      authDomain: "rfid-controle-acesso-ifpe.firebaseapp.com",
+      databaseURL: "https://rfid-controle-acesso-ifpe-default-rtdb.firebaseio.com",
+      projectId: "rfid-controle-acesso-ifpe",
+      storageBucket: "rfid-controle-acesso-ifpe.firebasestorage.app",
+      messagingSenderId: "84634333431",
+      appId: "1:84634333431:web:cc43a8c95ddf266bc763f2"
+    };
 
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
@@ -141,15 +265,27 @@
     const loginError = document.getElementById('login-error');
     const btnLogout = document.getElementById('btn-logout');
     const userDisplay = document.getElementById('user-display');
-    const statusTrava = document.getElementById('status-trava');
+    
+    // Controles
+    const switchTrava = document.getElementById('switch-trava');
+    const labelStatusTrava = document.getElementById('label-status-trava');
+    const switchModoAberto = document.getElementById('switch-modo-aberto');
+    const labelModoAberto = document.getElementById('label-modo-aberto');
     const statusPorta = document.getElementById('status-porta');
-    const btnAbrir = document.getElementById('btn-abrir');
+    
+    // Tags e Logs
+    const formTag = document.getElementById('form-tag');
+    const inputTagUid = document.getElementById('tag-uid');
+    const inputTagNome = document.getElementById('tag-nome');
+    const corpoTabelaTags = document.getElementById('corpo-tabela-tags');
     const corpoTabela = document.getElementById('corpo-tabela');
+    const btnSync = document.getElementById('btn-sync');
+    const btnLimpar = document.getElementById('btn-limpar');
     const btnExportar = document.getElementById('btn-exportar');
 
     let dadosParaExportar = [];
 
-    // 2. CONTROLE DE AUTENTICAÇÃO
+    // 2. AUTENTICAÇÃO
     auth.onAuthStateChanged(user => {
       if (user) {
         loginContainer.classList.add('hidden');
@@ -159,7 +295,6 @@
       } else {
         loginContainer.classList.remove('hidden');
         dashboardContainer.classList.add('hidden');
-        corpoTabela.innerHTML = `<tr><td colspan="4" class="border border-slate-300 px-4 py-4 text-center text-slate-400">Faça login para visualizar os dados.</td></tr>`;
       }
     });
 
@@ -177,24 +312,64 @@
 
     btnLogout.addEventListener('click', () => auth.signOut());
 
-    // 3. LISTENERS DO REALTIME DATABASE
+    // 3. LISTENERS DO FIREBASE
     function iniciarOuvintes() {
-      // Estado da trava
+      // 1. Interruptor: Estado da trava
       db.ref('dispositivos/salaE04/trava').on('value', snap => {
         const aberta = snap.val() === 1 || snap.val() === true;
-        statusTrava.innerText = aberta ? "DESTRAVADA" : "TRAVADA";
-        statusTrava.className = `text-xl font-bold mt-2 ${aberta ? 'text-amber-600' : 'text-emerald-600'}`;
+        switchTrava.checked = aberta;
+        labelStatusTrava.innerText = aberta ? "Estado: DESTRAVADA" : "Estado: TRAVADA";
+        labelStatusTrava.className = `text-xs font-bold ${aberta ? 'text-emerald-600' : 'text-slate-600'}`;
       });
 
-      // Estado do sensor da porta
+      // 2. Interruptor: Modo Normalmente Aberto
+      db.ref('dispositivos/salaE04/modoNormalmenteAberto').on('value', snap => {
+        const modoAberto = snap.val() === 1 || snap.val() === true;
+        switchModoAberto.checked = modoAberto;
+        labelModoAberto.innerText = modoAberto ? "Modo Aberto: ATIVADO (Sempre Livre)" : "Modo Aberto: DESLIGADO (Bloqueado)";
+        labelModoAberto.className = `text-xs font-bold ${modoAberto ? 'text-amber-600' : 'text-slate-600'}`;
+      });
+
+      // Sensor da Porta
       db.ref('dispositivos/salaE04/sensorPorta').on('value', snap => {
         const aberta = snap.val() === 1 || snap.val() === true;
         statusPorta.innerText = aberta ? "PORTA ABERTA" : "PORTA FECHADA";
-        statusPorta.className = `text-xl font-bold mt-2 ${aberta ? 'text-blue-600' : 'text-slate-600'}`;
+        statusPorta.className = `text-lg font-bold ${aberta ? 'text-blue-600' : 'text-slate-600'}`;
+      });
+
+      // Tags Cadastradas
+      db.ref('dispositivos/salaE04/usuariosAutorizados').on('value', snap => {
+        const tags = snap.val();
+        corpoTabelaTags.innerHTML = '';
+        if (!tags) {
+          corpoTabelaTags.innerHTML = `<tr><td colspan="3" class="border border-slate-300 px-4 py-3 text-center text-slate-400">Nenhuma tag cadastrada.</td></tr>`;
+          return;
+        }
+
+        Object.keys(tags).forEach(uidKey => {
+          const item = tags[uidKey];
+          const nome = typeof item === 'object' ? item.nome : item;
+          const tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-50";
+          tr.innerHTML = `
+            <td class="border border-slate-300 px-4 py-2 text-center font-mono text-xs font-semibold text-slate-700">${uidKey}</td>
+            <td class="border border-slate-300 px-4 py-2 text-center text-xs text-slate-800">${nome}</td>
+            <td class="border border-slate-300 px-4 py-2 text-center">
+              <button onclick="removerTag('${uidKey}')" class="px-2 py-1 bg-red-50 hover:bg-red-200 text-red-700 border border-red-300 text-[11px] font-bold rounded transition">
+                Excluir
+              </button>
+            </td>
+          `;
+          corpoTabelaTags.appendChild(tr);
+        });
       });
 
       // Histórico de Acessos
-      db.ref('dispositivos/salaE04/logs').limitToLast(50).on('value', snap => {
+      carregarLogs();
+    }
+
+    function carregarLogs() {
+      db.ref('dispositivos/salaE04/logs').limitToLast(50).once('value', snap => {
         const dados = snap.val();
         corpoTabela.innerHTML = '';
         dadosParaExportar = [];
@@ -235,33 +410,86 @@
       });
     }
 
-    // 4. COMANDO DE ABERTURA REMOTA
-    btnAbrir.addEventListener('click', () => {
-      btnAbrir.disabled = true;
-      btnAbrir.innerText = "Comando enviado...";
-      
-      db.ref('dispositivos/salaE04/comandoAbertura').set(true)
-        .then(() => {
-          setTimeout(() => {
-            btnAbrir.disabled = false;
-            btnAbrir.innerText = "Liberar Trava (5s)";
-          }, 3000);
-        })
+    // 4. INTERRUPTORES (AÇÕES)
+    // Acionamento da Trava pelo interruptor
+    switchTrava.addEventListener('change', () => {
+      const abrir = switchTrava.checked;
+      db.ref('dispositivos/salaE04/comandoAbertura').set(abrir)
         .catch(err => {
-          alert("Erro ao enviar comando: " + err.message);
-          btnAbrir.disabled = false;
-          btnAbrir.innerText = "Liberar Trava (5s)";
+          alert("Erro ao acionar trava: " + err.message);
+          switchTrava.checked = !abrir;
         });
     });
 
-    // 5. EXPORTAÇÃO PARA PLANILHA (.CSV)
+    // Modo Normalmente Aberto
+    switchModoAberto.addEventListener('change', () => {
+      const ativar = switchModoAberto.checked;
+      db.ref('dispositivos/salaE04/modoNormalmenteAberto').set(ativar)
+        .catch(err => {
+          alert("Erro ao alterar modo: " + err.message);
+          switchModoAberto.checked = !ativar;
+        });
+    });
+
+    // 5. CADASTRO E EXCLUSÃO DE TAGS
+    formTag.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const uidLimpa = inputTagUid.value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const nome = inputTagNome.value.trim();
+
+      if (!uidLimpa || !nome) {
+        alert("Preencha o UID e o Nome.");
+        return;
+      }
+
+      db.ref('dispositivos/salaE04/usuariosAutorizados/' + uidLimpa).set({
+        nome: nome,
+        cadastradoEm: new Date().toISOString()
+      }).then(() => {
+        inputTagUid.value = '';
+        inputTagNome.value = '';
+      }).catch(err => {
+        alert("Erro ao salvar tag: " + err.message);
+      });
+    });
+
+    window.removerTag = function(uid) {
+      if (confirm(`Deseja revogar o acesso da tag UID: ${uid}?`)) {
+        db.ref('dispositivos/salaE04/usuariosAutorizados/' + uid).remove()
+          .catch(err => alert("Erro ao excluir tag: " + err.message));
+      }
+    };
+
+    // 6. BOTÕES DA TABELA
+    // Sincronizar Cache
+    btnSync.addEventListener('click', () => {
+      btnSync.disabled = true;
+      btnSync.classList.add('opacity-50');
+      carregarLogs();
+      setTimeout(() => {
+        btnSync.disabled = false;
+        btnSync.classList.remove('opacity-50');
+      }, 1000);
+    });
+
+    // Limpar Histórico
+    btnLimpar.addEventListener('click', () => {
+      if (confirm("Atenção: Tem certeza de que deseja apagar todos os registros do histórico?")) {
+        db.ref('dispositivos/salaE04/logs').remove()
+          .then(() => {
+            carregarLogs();
+          })
+          .catch(err => alert("Erro ao limpar histórico: " + err.message));
+      }
+    });
+
+    // Exportar para Planilha (.CSV)
     btnExportar.addEventListener('click', () => {
       if (dadosParaExportar.length === 0) {
         alert("Não há dados carregados para exportar.");
         return;
       }
 
-      // Monta cabeçalho e linhas delimitadas por ponto e vírgula (padrão Excel PT-BR)
       let csvContent = "\uFEFF"; // BOM UTF-8 para acentos corretos no Excel
       csvContent += "Data/Hora;UID;Usuario;Status\r\n";
 
