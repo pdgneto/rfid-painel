@@ -3,69 +3,112 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Painel RFID — Controle de Acesso</title>
+  <title>Controle de Acesso - Sala E04</title>
+  
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Firebase Compat SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen p-4 md:p-8 font-sans">
-  <div class="max-w-5xl mx-auto space-y-6">
+<body class="bg-slate-100 min-h-screen text-slate-800 font-sans flex flex-col items-center p-4">
 
-    <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+  <!-- ================= TELA DE LOGIN ================= -->
+  <div id="login-container" class="w-full max-w-md bg-white p-8 rounded-xl shadow-lg border border-slate-200 mt-16">
+    <div class="text-center mb-6">
+      <h1 class="text-2xl font-bold text-slate-900">Sala E04</h1>
+      <p class="text-sm text-slate-500">Sistema de Controle de Acesso</p>
+    </div>
+    
+    <div id="login-error" class="hidden mb-4 p-3 bg-red-100 border border-red-300 text-red-700 text-xs rounded text-center"></div>
+
+    <form id="login-form" class="space-y-4">
       <div>
-        <h1 class="text-2xl font-bold text-sky-400">Controle de Acesso</h1>
-        <p class="text-sm text-slate-400">Sala: <span class="font-mono text-white font-semibold">E04</span></p>
+        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">E-mail</label>
+        <input type="email" id="email" required class="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm" placeholder="admin@ifpe.edu.br" />
       </div>
-      <div id="statusBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800 text-xs text-slate-400 w-fit">
-        <span class="w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse"></span>
-        <span>Conectando...</span>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Senha</label>
+        <input type="password" id="password" required class="w-full px-3 py-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm" placeholder="••••••••" />
       </div>
+      <button type="submit" id="btn-login" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded shadow transition text-sm">
+        Entrar no Painel
+      </button>
+    </form>
+  </div>
+
+  <!-- ================= PAINEL PRINCIPAL ================= -->
+  <div id="dashboard-container" class="hidden w-full max-w-5xl space-y-6">
+    
+    <!-- Barra Superior -->
+    <header class="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+      <div>
+        <h1 class="text-xl font-bold text-slate-900">Monitoramento & Acesso - Sala E04</h1>
+        <span id="user-display" class="text-xs text-slate-500">Conectado</span>
+      </div>
+      <button id="btn-logout" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded transition">
+        Sair
+      </button>
     </header>
 
-    <section class="grid grid-cols-1 sm:grid-cols-4 gap-4">
-      <button id="btnOpen" class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition p-4 rounded-xl font-medium shadow-lg flex flex-col items-center justify-center gap-2 cursor-pointer">
-        <span class="text-2xl"></span>
-        <span>Abrir Porta</span>
-      </button>
+    <!-- Cards de Monitoramento e Ações -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      
+      <!-- Card Status Trava -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center">
+        <span class="text-xs font-semibold uppercase text-slate-400">Estado da Trava</span>
+        <span id="status-trava" class="text-xl font-bold mt-2 text-slate-700">Aguardando...</span>
+      </div>
 
-      <button id="btnToggleAcc" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition p-4 rounded-xl font-medium shadow-lg flex flex-col items-center justify-center gap-2 cursor-pointer">
-        <span class="text-2xl"></span>
-        <span id="txtToggleAcc">Modo Normalmente Aberto</span>
-      </button>
+      <!-- Card Status Sensor Porta -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center">
+        <span class="text-xs font-semibold uppercase text-slate-400">Sensor da Porta</span>
+        <span id="status-porta" class="text-xl font-bold mt-2 text-slate-700">Aguardando...</span>
+      </div>
 
-      <button id="btnSync" class="bg-slate-700 hover:bg-slate-600 active:scale-95 transition p-4 rounded-xl font-medium shadow-lg flex flex-col items-center justify-center gap-2 cursor-pointer">
-        <span class="text-2xl"></span>
-        <span>Sincronizar Cache</span>
-      </button>
-
-      <button id="btnClearLogs" class="bg-rose-700 hover:bg-rose-600 active:scale-95 transition p-4 rounded-xl font-medium shadow-lg flex flex-col items-center justify-center gap-2 cursor-pointer">
-        <span class="text-2xl"></span>
-        <span>Limpar Histórico</span>
-      </button>
-    </section>
-
-    <section class="bg-slate-800/80 rounded-xl p-4 shadow-xl border border-slate-700">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-        <div>
-          <h2 class="text-lg font-semibold text-slate-200">Histórico de Acessos em Tempo Real</h2>
-          <span class="text-xs text-slate-400 font-mono">Últimos 10 registros</span>
-        </div>
-        <button id="btnExportCSV" class="bg-slate-700 hover:bg-slate-600 active:scale-95 transition px-3 py-1.5 rounded-lg text-xs font-medium text-slate-200 border border-slate-600 flex items-center justify-center gap-1.5 w-fit cursor-pointer">
-          <span>Exportar para Planilha (.csv)</span>
+      <!-- Card Comando Remoto -->
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center">
+        <span class="text-xs font-semibold uppercase text-slate-400">Abertura Remota</span>
+        <button id="btn-abrir" class="mt-2 w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded shadow transition text-sm">
+          Liberar Trava (5s)
         </button>
       </div>
 
+    </div>
+
+    <!-- Seção da Tabela com Exportação -->
+    <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+        <div>
+          <h2 class="text-lg font-bold text-slate-800">Histórico de Acessos</h2>
+          <p class="text-xs text-slate-500">Registros em tempo real recebidos do ESP32</p>
+        </div>
+        
+        <!-- Botão Exportar Planilha -->
+        <button id="btn-exportar" class="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded shadow transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+          </svg>
+          Exportar para Planilha (.csv)
+        </button>
+      </div>
+
+      <!-- Tabela com bordas definidas e conteúdo centralizado -->
       <div class="overflow-x-auto">
-        <table id="accessTable" class="w-full text-sm border-collapse border border-slate-700">
+        <table id="tabela-acessos" class="w-full border-collapse border border-slate-300 text-sm">
           <thead>
-            <tr class="bg-slate-700/50 text-slate-300 border border-slate-700">
-              <th class="py-2.5 px-3 text-center border border-slate-700 font-medium">Data / Hora</th>
-              <th class="py-2.5 px-3 text-center border border-slate-700 font-medium">Cartão UID</th>
-              <th class="py-2.5 px-3 text-center border border-slate-700 font-medium">Identificação</th>
-              <th class="py-2.5 px-3 text-center border border-slate-700 font-medium">Acesso</th>
+            <tr class="bg-slate-100">
+              <th class="border border-slate-300 px-4 py-2 text-center text-xs font-bold text-slate-600 uppercase">Data / Hora</th>
+              <th class="border border-slate-300 px-4 py-2 text-center text-xs font-bold text-slate-600 uppercase">UID do Cartão / Tag</th>
+              <th class="border border-slate-300 px-4 py-2 text-center text-xs font-bold text-slate-600 uppercase">Usuário / Identificação</th>
+              <th class="border border-slate-300 px-4 py-2 text-center text-xs font-bold text-slate-600 uppercase">Status</th>
             </tr>
           </thead>
-          <tbody id="logsTableBody" class="divide-y divide-slate-700/50">
+          <tbody id="corpo-tabela">
             <tr>
-              <td colspan="4" class="text-center py-6 text-slate-500 border border-slate-700">Aguardando leituras ou registros...</td>
+              <td colspan="4" class="border border-slate-300 px-4 py-4 text-center text-slate-400">Nenhum registro carregado ainda.</td>
             </tr>
           </tbody>
         </table>
@@ -74,138 +117,163 @@
 
   </div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-    import { getDatabase, ref, onValue, update, remove } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
-
+  <!-- ================= LÓGICA JAVASCRIPT ================= -->
+  <script>
+    // 1. CONFIGURAÇÃO DO FIREBASE (Insira os dados do seu Console)
     const firebaseConfig = {
-      databaseURL: "https://rfid-controle-acesso-ifpe-default-rtdb.firebaseio.com"
-    };
+  apiKey: "AIzaSyCwUgh17G0S-2nF3Sgllei0M7HpdaQ-ke8",
+  authDomain: "rfid-controle-acesso-ifpe.firebaseapp.com",
+  databaseURL: "https://rfid-controle-acesso-ifpe-default-rtdb.firebaseio.com",
+  projectId: "rfid-controle-acesso-ifpe",
+  storageBucket: "rfid-controle-acesso-ifpe.firebasestorage.app",
+  messagingSenderId: "84634333431",
+  appId: "1:84634333431:web:cc43a8c95ddf266bc763f2"
+};
 
-    const app = initializeApp(firebaseConfig);
-    const db  = getDatabase(app);
-    const DOOR_ID = "E04";
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
 
-    const statusBadge = document.getElementById("statusBadge");
-    const txtToggleAcc = document.getElementById("txtToggleAcc");
-    const logsTableBody = document.getElementById("logsTableBody");
-    const btnExportCSV = document.getElementById("btnExportCSV");
+    // Elementos da Interface
+    const loginContainer = document.getElementById('login-container');
+    const dashboardContainer = document.getElementById('dashboard-container');
+    const loginForm = document.getElementById('login-form');
+    const loginError = document.getElementById('login-error');
+    const btnLogout = document.getElementById('btn-logout');
+    const userDisplay = document.getElementById('user-display');
+    const statusTrava = document.getElementById('status-trava');
+    const statusPorta = document.getElementById('status-porta');
+    const btnAbrir = document.getElementById('btn-abrir');
+    const corpoTabela = document.getElementById('corpo-tabela');
+    const btnExportar = document.getElementById('btn-exportar');
 
-    let currentAccMode = false;
-    let lastSeenTimestamp = 0;
-    let isDeviceOnlineFlag = false;
-    let currentLogsList = [];
+    let dadosParaExportar = [];
 
-    // Função de formatação para padrão brasileiro (DD/MM/AAAA HH:MM:SS)
-    function formatToBRDate(dateStr) {
-      if (!dateStr || dateStr.includes("Aguardando")) return dateStr || '-';
-      const parts = dateStr.trim().split(" ");
-      if (parts.length === 2 && parts[0].includes("-")) {
-        const dateParts = parts[0].split("-");
-        if (dateParts.length === 3) {
-          return `${dateParts[2]}/${dateParts[1]}/${dateParts[0]} ${parts[1]}`;
-        }
-      }
-      return dateStr;
-    }
-
-    function renderStatus() {
-      const now = Math.floor(Date.now() / 1000);
-      const isOnline = isDeviceOnlineFlag && (now - lastSeenTimestamp <= 30);
-
-      if (isOnline) {
-        statusBadge.innerHTML = `
-          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span class="text-emerald-400 font-medium">ESP32 Online ${currentAccMode ? '• Modo Normalmente Aberto' : ''}</span>
-        `;
+    // 2. CONTROLE DE AUTENTICAÇÃO
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        loginContainer.classList.add('hidden');
+        dashboardContainer.classList.remove('hidden');
+        userDisplay.innerText = user.email;
+        iniciarOuvintes();
       } else {
-        statusBadge.innerHTML = `
-          <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-          <span class="text-rose-400 font-medium">ESP32 Offline</span>
-        `;
-      }
-    }
-
-    setInterval(renderStatus, 1000);
-
-    onValue(ref(db, `doors/${DOOR_ID}/status`), (snap) => {
-      const val = snap.val();
-      if (!val) return;
-
-      currentAccMode = !!val.accessibleMode;
-      txtToggleAcc.textContent = currentAccMode ? "Desativar Modo Normalmente Aberto" : "Ativar Modo Normalmente Aberto";
-      lastSeenTimestamp = val.lastSeen || 0;
-      isDeviceOnlineFlag = !!val.online;
-      renderStatus();
-    });
-
-    onValue(ref(db, `logs/${DOOR_ID}`), (snap) => {
-      const data = snap.val();
-      if (!data) {
-        currentLogsList = [];
-        logsTableBody.innerHTML = `
-          <tr>
-            <td colspan="4" class="text-center py-6 text-slate-500 border border-slate-700">Aguardando leituras ou registros...</td>
-          </tr>
-        `;
-        return;
-      }
-
-      currentLogsList = Object.values(data).sort((a, b) => (b.unixTs || 0) - (a.unixTs || 0)).slice(0, 10);
-      
-      logsTableBody.innerHTML = currentLogsList.map(item => `
-        <tr class="hover:bg-slate-700/30">
-          <td class="py-2 px-3 text-center text-slate-400 font-mono text-xs border border-slate-700">${formatToBRDate(item.datetime)}</td>
-          <td class="py-2 px-3 text-center font-mono border border-slate-700">${item.cardID || '-'}</td>
-          <td class="py-2 px-3 text-center font-medium ${item.authorized ? 'text-white' : 'text-rose-300'} border border-slate-700">${item.userName || 'Desconhecido'}</td>
-          <td class="py-2 px-3 text-center border border-slate-700">
-            <span class="px-2 py-0.5 rounded text-xs ${item.authorized ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'}">
-              ${item.authorized ? 'Concedido' : 'Negado'}
-            </span>
-          </td>
-        </tr>
-      `).join('');
-    });
-
-    document.getElementById("btnOpen").addEventListener("click", () => {
-      update(ref(db, `doors/${DOOR_ID}/commands`), { openDoor: true });
-    });
-
-    document.getElementById("btnToggleAcc").addEventListener("click", () => {
-      update(ref(db, `doors/${DOOR_ID}/commands`), { setAccessibleMode: currentAccMode ? "off" : "on" });
-    });
-
-    document.getElementById("btnSync").addEventListener("click", () => {
-      update(ref(db, `doors/${DOOR_ID}/commands`), { forceSync: true });
-    });
-
-    document.getElementById("btnClearLogs").addEventListener("click", () => {
-      if (confirm("Tem certeza que deseja apagar o histórico de acessos desta porta?")) {
-        remove(ref(db, `logs/${DOOR_ID}`));
+        loginContainer.classList.remove('hidden');
+        dashboardContainer.classList.add('hidden');
+        corpoTabela.innerHTML = `<tr><td colspan="4" class="border border-slate-300 px-4 py-4 text-center text-slate-400">Faça login para visualizar os dados.</td></tr>`;
       }
     });
 
-    // Rotina de exportação para planilha CSV compatível com Excel/Google Sheets
-    btnExportCSV.addEventListener("click", () => {
-      if (!currentLogsList || currentLogsList.length === 0) {
-        alert("Não há registros para exportar.");
-        return;
-      }
+    loginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      loginError.classList.add('hidden');
+      const email = document.getElementById('email').value;
+      const pass = document.getElementById('password').value;
 
-      let csvContent = "\uFEFFData / Hora;Cartão UID;Identificação;Acesso\n";
-      currentLogsList.forEach(row => {
-        const dt = formatToBRDate(row.datetime);
-        const card = row.cardID || '-';
-        const user = (row.userName || 'Desconhecido').replace(/;/g, ' ');
-        const access = row.authorized ? 'Concedido' : 'Negado';
-        csvContent += `"${dt}";"${card}";"${user}";"${access}"\n`;
+      auth.signInWithEmailAndPassword(email, pass).catch(err => {
+        loginError.innerText = "Falha na autenticação: Verifique e-mail e senha.";
+        loginError.classList.remove('hidden');
+      });
+    });
+
+    btnLogout.addEventListener('click', () => auth.signOut());
+
+    // 3. LISTENERS DO REALTIME DATABASE
+    function iniciarOuvintes() {
+      // Estado da trava
+      db.ref('dispositivos/salaE04/trava').on('value', snap => {
+        const aberta = snap.val() === 1 || snap.val() === true;
+        statusTrava.innerText = aberta ? "DESTRAVADA" : "TRAVADA";
+        statusTrava.className = `text-xl font-bold mt-2 ${aberta ? 'text-amber-600' : 'text-emerald-600'}`;
       });
 
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      // Estado do sensor da porta
+      db.ref('dispositivos/salaE04/sensorPorta').on('value', snap => {
+        const aberta = snap.val() === 1 || snap.val() === true;
+        statusPorta.innerText = aberta ? "PORTA ABERTA" : "PORTA FECHADA";
+        statusPorta.className = `text-xl font-bold mt-2 ${aberta ? 'text-blue-600' : 'text-slate-600'}`;
+      });
+
+      // Histórico de Acessos
+      db.ref('dispositivos/salaE04/logs').limitToLast(50).on('value', snap => {
+        const dados = snap.val();
+        corpoTabela.innerHTML = '';
+        dadosParaExportar = [];
+
+        if (!dados) {
+          corpoTabela.innerHTML = `<tr><td colspan="4" class="border border-slate-300 px-4 py-4 text-center text-slate-400">Nenhum registro encontrado.</td></tr>`;
+          return;
+        }
+
+        const registros = Object.keys(dados).map(key => dados[key]).reverse();
+
+        registros.forEach(item => {
+          const dataHora = item.timestamp || '-';
+          const uid = item.uid || '-';
+          const usuario = item.usuario || 'Não Cadastrado';
+          const status = item.autorizado ? 'Autorizado' : 'Negado';
+          const corBadge = item.autorizado ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800';
+
+          dadosParaExportar.push({
+            DataHora: dataHora,
+            UID: uid,
+            Usuario: usuario,
+            Status: status
+          });
+
+          const tr = document.createElement('tr');
+          tr.className = "hover:bg-slate-50";
+          tr.innerHTML = `
+            <td class="border border-slate-300 px-4 py-2 text-center text-xs text-slate-600">${dataHora}</td>
+            <td class="border border-slate-300 px-4 py-2 text-center font-mono text-xs text-slate-700">${uid}</td>
+            <td class="border border-slate-300 px-4 py-2 text-center text-xs font-semibold text-slate-800">${usuario}</td>
+            <td class="border border-slate-300 px-4 py-2 text-center">
+              <span class="inline-block px-2 py-0.5 rounded text-[11px] font-bold ${corBadge}">${status}</span>
+            </td>
+          `;
+          corpoTabela.appendChild(tr);
+        });
+      });
+    }
+
+    // 4. COMANDO DE ABERTURA REMOTA
+    btnAbrir.addEventListener('click', () => {
+      btnAbrir.disabled = true;
+      btnAbrir.innerText = "Comando enviado...";
+      
+      db.ref('dispositivos/salaE04/comandoAbertura').set(true)
+        .then(() => {
+          setTimeout(() => {
+            btnAbrir.disabled = false;
+            btnAbrir.innerText = "Liberar Trava (5s)";
+          }, 3000);
+        })
+        .catch(err => {
+          alert("Erro ao enviar comando: " + err.message);
+          btnAbrir.disabled = false;
+          btnAbrir.innerText = "Liberar Trava (5s)";
+        });
+    });
+
+    // 5. EXPORTAÇÃO PARA PLANILHA (.CSV)
+    btnExportar.addEventListener('click', () => {
+      if (dadosParaExportar.length === 0) {
+        alert("Não há dados carregados para exportar.");
+        return;
+      }
+
+      // Monta cabeçalho e linhas delimitadas por ponto e vírgula (padrão Excel PT-BR)
+      let csvContent = "\uFEFF"; // BOM UTF-8 para acentos corretos no Excel
+      csvContent += "Data/Hora;UID;Usuario;Status\r\n";
+
+      dadosParaExportar.forEach(row => {
+        csvContent += `"${row.DataHora}";"${row.UID}";"${row.Usuario}";"${row.Status}"\r\n`;
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.setAttribute("href", url);
-      link.setAttribute("download", `relatorio_acessos_E04.csv`);
+      link.setAttribute("download", `acessos_sala_e04_${new Date().toISOString().slice(0,10)}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
