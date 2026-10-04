@@ -111,7 +111,7 @@
 
     function renderStatus() {
       const now = Math.floor(Date.now() / 1000);
-      const isOnline = isDeviceOnlineFlag && (now - lastSeenTimestamp <= 10);
+      const isOnline = isDeviceOnlineFlag && (now - lastSeenTimestamp <= 30);
 
       if (isOnline) {
         statusBadge.innerHTML = `
