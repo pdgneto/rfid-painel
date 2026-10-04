@@ -101,13 +101,14 @@
     <!-- Cards de Monitoramento e Controles -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       
-      <!-- Card 1: Status de Conexão do ESP32 -->
+      <!-- Card 1: Status de Conexão do ESP32 com Heartbeat Watchdog -->
       <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center min-h-[140px]">
-        <span class="text-xs font-bold uppercase text-slate-500 mb-3">Status da Conexão</span>
+        <span class="text-xs font-bold uppercase text-slate-500 mb-2">Status da Conexão</span>
         <div class="flex items-center gap-2">
           <span id="dot-esp32" class="w-3.5 h-3.5 rounded-full bg-slate-400"></span>
           <span id="status-esp32" class="text-xl font-bold text-slate-600">Verificando...</span>
         </div>
+        <span id="last-seen-detail" class="text-[11px] text-slate-400 mt-2">Aguardando telemetria...</span>
       </div>
 
       <!-- Card 2: Interruptor da Trava -->
@@ -267,6 +268,7 @@
     // Status Conexão ESP32
     const statusEsp32 = document.getElementById('status-esp32');
     const dotEsp32 = document.getElementById('dot-esp32');
+    const lastSeenDetail = document.getElementById('last-seen-detail');
 
     // Controles
     const switchTrava = document.getElementById('switch-trava');
@@ -287,6 +289,8 @@
     let dadosParaExportar = [];
     let mapaTagsCadastradas = {};
     let usuarioLogadoEmail = "Painel Web";
+    let dadosUltimoStatus = null;
+    const HEARTBEAT_TIMEOUT_SEG = 20;
 
     // 1. AUTENTICAÇÃO
     auth.onAuthStateChanged(user => {
@@ -318,11 +322,14 @@
 
     // 2. LISTENERS DO FIREBASE
     function iniciarOuvintes() {
-      // Conexão ESP32
-      db.ref('doors/E04/status/online').on('value', snap => {
-        const isOnline = snap.val() === true;
-        atualizarStatusEsp32(isOnline);
+      // Conexão e Heartbeat Watchdog do ESP32
+      db.ref('doors/E04/status').on('value', snap => {
+        dadosUltimoStatus = snap.val();
+        avaliarConexaoESP32();
       });
+
+      // Temporizador para validar se o heartbeat expirou mesmo sem novo evento do Firebase
+      setInterval(avaliarConexaoESP32, 3000);
 
       // Estado da Trava
       db.ref('doors/E04/commands/openDoor').on('value', snap => {
@@ -354,16 +361,32 @@
       });
     }
 
-    function atualizarStatusEsp32(isOnline) {
-      if (isOnline) {
+    function avaliarConexaoESP32() {
+      if (!dadosUltimoStatus) {
+        definirVisualOffline("Sem dados recebidos");
+        return;
+      }
+
+      const agoraUnix = Math.floor(Date.now() / 1000);
+      const ultimoSinal = dadosUltimoStatus.lastSeen || 0;
+      const diferenca = agoraUnix - ultimoSinal;
+
+      if (dadosUltimoStatus.online === true && diferenca <= HEARTBEAT_TIMEOUT_SEG) {
         statusEsp32.innerText = "ONLINE";
         statusEsp32.className = "text-xl font-bold text-emerald-600";
         dotEsp32.className = "w-3.5 h-3.5 rounded-full bg-emerald-500 animate-pulse";
+        lastSeenDetail.innerText = `Sinal há ${diferenca}s atrás`;
       } else {
-        statusEsp32.innerText = "OFFLINE";
-        statusEsp32.className = "text-xl font-bold text-red-600";
-        dotEsp32.className = "w-3.5 h-3.5 rounded-full bg-red-500";
+        const detalhe = ultimoSinal > 0 ? `Inativo há ${diferenca}s` : "Sem sinal";
+        definirVisualOffline(detalhe);
       }
+    }
+
+    function definirVisualOffline(textoDetalhe) {
+      statusEsp32.innerText = "OFFLINE";
+      statusEsp32.className = "text-xl font-bold text-red-600";
+      dotEsp32.className = "w-3.5 h-3.5 rounded-full bg-red-500";
+      lastSeenDetail.innerText = textoDetalhe;
     }
 
     // 3. RENDERIZAR E GERENCIAR TAGS
@@ -482,7 +505,6 @@
         const partesChave = chave.split('_');
         const restoChave = partesChave.slice(2).join('_');
 
-        // Verifica se há autor/usuário explícito gravado no nó
         const operadorGravado = (item && (item.user || item.usuario || item.name || item.operador)) ? (item.user || item.usuario || item.name || item.operador) : null;
 
         if (restoChave === "REMOTE_ACC_ON") {
@@ -559,15 +581,13 @@
       });
     }
 
-    // 5. INTERRUPTORES (GRAVAM O OPERADOR LOGADO NO HISTÓRICO)
+    // 5. INTERRUPTORES
     switchTrava.addEventListener('change', () => {
       const abrir = switchTrava.checked;
       const timestampChave = gerarDataChaveAtual();
 
-      // 1. Envia comando ao ESP32
       db.ref('doors/E04/commands/openDoor').set(abrir)
         .then(() => {
-          // 2. Se foi um comando de abertura, registra no histórico com o e-mail de quem acionou
           if (abrir) {
             db.ref(`logs/E04/${timestampChave}_REMOTE`).set({
               authorized: true,
@@ -576,7 +596,6 @@
               timestamp: Math.floor(Date.now() / 1000)
             });
 
-            // Atualiza status de auditoria
             db.ref('doors/E04/status/changedBy').set(usuarioLogadoEmail);
             db.ref('doors/E04/status/changedAt').set(Math.floor(Date.now() / 1000));
           }
@@ -593,10 +612,8 @@
       const timestampChave = gerarDataChaveAtual();
       const sufixoEvento = ativar ? "REMOTE_ACC_ON" : "REMOTE_ACC_OFF";
 
-      // 1. Envia comando ao ESP32
       db.ref('doors/E04/commands/setAccessibleMode').set(valor)
         .then(() => {
-          // 2. Registra a mudança de modo no histórico com o e-mail de quem acionou
           db.ref(`logs/E04/${timestampChave}_${sufixoEvento}`).set({
             authorized: true,
             user: usuarioLogadoEmail,
@@ -604,7 +621,6 @@
             timestamp: Math.floor(Date.now() / 1000)
           });
 
-          // Atualiza status de auditoria
           db.ref('doors/E04/status/changedBy').set(usuarioLogadoEmail);
           db.ref('doors/E04/status/changedAt').set(Math.floor(Date.now() / 1000));
         })
