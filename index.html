@@ -52,6 +52,15 @@
     input:checked + .slider:before {
       transform: translateX(24px);
     }
+    /* Estilo de desabilitado quando offline */
+    input:disabled + .slider {
+      background-color: #e2e8f0 !important;
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+    input:disabled + .slider:before {
+      background-color: #94a3b8;
+    }
   </style>
 </head>
 <body class="bg-slate-100 min-h-screen text-slate-800 font-sans flex flex-col items-center p-4">
@@ -108,11 +117,11 @@
           <span id="dot-esp32" class="w-3.5 h-3.5 rounded-full bg-slate-400"></span>
           <span id="status-esp32" class="text-xl font-bold text-slate-600">Verificando...</span>
         </div>
-        <span id="last-seen-detail" class="text-[11px] text-slate-400 mt-2">Aguardando telemetria...</span>
+        <span id="last-seen-detail" class="text-[11px] font-mono text-slate-400 mt-2">Aguardando telemetria...</span>
       </div>
 
       <!-- Card 2: Interruptor da Trava -->
-      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-between min-h-[140px]">
+      <div id="card-trava" class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-between min-h-[140px] transition-opacity">
         <span class="text-xs font-bold uppercase text-slate-500">Acionamento da Trava</span>
         <div class="my-2 flex items-center gap-3">
           <span class="text-xs font-medium text-slate-500">Travada</span>
@@ -126,7 +135,7 @@
       </div>
 
       <!-- Card 3: Modo Normalmente Aberto -->
-      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-between min-h-[140px]">
+      <div id="card-modo-aberto" class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-between min-h-[140px] transition-opacity">
         <span class="text-xs font-bold uppercase text-slate-500">Modo Normalmente Aberto</span>
         <div class="my-2 flex items-center justify-center">
           <label class="switch">
@@ -270,7 +279,9 @@
     const dotEsp32 = document.getElementById('dot-esp32');
     const lastSeenDetail = document.getElementById('last-seen-detail');
 
-    // Controles
+    // Controles & Containers dos Cards
+    const cardTrava = document.getElementById('card-trava');
+    const cardModoAberto = document.getElementById('card-modo-aberto');
     const switchTrava = document.getElementById('switch-trava');
     const labelStatusTrava = document.getElementById('label-status-trava');
     const switchModoAberto = document.getElementById('switch-modo-aberto');
@@ -290,7 +301,18 @@
     let mapaTagsCadastradas = {};
     let usuarioLogadoEmail = "Painel Web";
     let dadosUltimoStatus = null;
+    let esp32EstaOnline = false;
     const HEARTBEAT_TIMEOUT_SEG = 20;
+
+    // Converte segundos inteiros para o formato hh:mm:ss
+    function formatarSegundosParaHMS(segundosTotais) {
+      if (isNaN(segundosTotais) || segundosTotais < 0) return "00:00:00";
+      const horas = Math.floor(segundosTotais / 3600);
+      const minutos = Math.floor((segundosTotais % 3600) / 60);
+      const segundos = Math.floor(segundosTotais % 60);
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${pad(horas)}:${pad(minutos)}:${pad(segundos)}`;
+    }
 
     // 1. AUTENTICAÇÃO
     auth.onAuthStateChanged(user => {
@@ -328,23 +350,27 @@
         avaliarConexaoESP32();
       });
 
-      // Temporizador para validar se o heartbeat expirou mesmo sem novo evento do Firebase
-      setInterval(avaliarConexaoESP32, 3000);
+      // Validador local a cada 1 segundo para atualizar o cronômetro hh:mm:ss com precisão
+      setInterval(avaliarConexaoESP32, 1000);
 
       // Estado da Trava
       db.ref('doors/E04/commands/openDoor').on('value', snap => {
         const aberta = snap.val() === true;
         switchTrava.checked = aberta;
-        labelStatusTrava.innerText = aberta ? "Estado: DESTRAVADA" : "Estado: TRAVADA";
-        labelStatusTrava.className = `text-xs font-bold ${aberta ? 'text-emerald-600' : 'text-slate-600'}`;
+        if (esp32EstaOnline) {
+          labelStatusTrava.innerText = aberta ? "Estado: DESTRAVADA" : "Estado: TRAVADA";
+          labelStatusTrava.className = `text-xs font-bold ${aberta ? 'text-emerald-600' : 'text-slate-600'}`;
+        }
       });
 
       // Modo Normalmente Aberto
       db.ref('doors/E04/status/accessibleMode').on('value', snap => {
         const modoAberto = snap.val() === true;
         switchModoAberto.checked = modoAberto;
-        labelModoAberto.innerText = modoAberto ? "Livre" : "Bloqueado";
-        labelModoAberto.className = `text-xs font-bold ${modoAberto ? 'text-emerald-600' : 'text-slate-600'}`;
+        if (esp32EstaOnline) {
+          labelModoAberto.innerText = modoAberto ? "Livre" : "Bloqueado";
+          labelModoAberto.className = `text-xs font-bold ${modoAberto ? 'text-emerald-600' : 'text-slate-600'}`;
+        }
       });
 
       // Tags cadastradas
@@ -361,6 +387,7 @@
       });
     }
 
+    // Avaliação de Conexão com Watchdog e Formatação HH:MM:SS
     function avaliarConexaoESP32() {
       if (!dadosUltimoStatus) {
         definirVisualOffline("Sem dados recebidos");
@@ -369,16 +396,25 @@
 
       const agoraUnix = Math.floor(Date.now() / 1000);
       const ultimoSinal = dadosUltimoStatus.lastSeen || 0;
-      const diferenca = agoraUnix - ultimoSinal;
+      const diferenca = Math.max(0, agoraUnix - ultimoSinal);
+      const tempoFormatado = formatarSegundosParaHMS(diferenca);
 
       if (dadosUltimoStatus.online === true && diferenca <= HEARTBEAT_TIMEOUT_SEG) {
+        esp32EstaOnline = true;
         statusEsp32.innerText = "ONLINE";
         statusEsp32.className = "text-xl font-bold text-emerald-600";
         dotEsp32.className = "w-3.5 h-3.5 rounded-full bg-emerald-500 animate-pulse";
-        lastSeenDetail.innerText = `Sinal há ${diferenca}s atrás`;
+        lastSeenDetail.innerText = `Sinal há ${tempoFormatado}`;
+
+        // Habilita interruptores
+        habilitarInterruptores(true);
       } else {
-        const detalhe = ultimoSinal > 0 ? `Inativo há ${diferenca}s` : "Sem sinal";
+        esp32EstaOnline = false;
+        const detalhe = ultimoSinal > 0 ? `Inativo há ${tempoFormatado}` : "Sem sinal";
         definirVisualOffline(detalhe);
+
+        // Desabilita interruptores (proteção offline)
+        habilitarInterruptores(false);
       }
     }
 
@@ -387,6 +423,28 @@
       statusEsp32.className = "text-xl font-bold text-red-600";
       dotEsp32.className = "w-3.5 h-3.5 rounded-full bg-red-500";
       lastSeenDetail.innerText = textoDetalhe;
+    }
+
+    // Bloqueia ou desbloqueia interruptores com base na conectividade
+    function habilitarInterruptores(permitir) {
+      switchTrava.disabled = !permitir;
+      switchModoAberto.disabled = !permitir;
+
+      if (!permitir) {
+        cardTrava.classList.add('opacity-50');
+        cardModoAberto.classList.add('opacity-50');
+        labelStatusTrava.innerText = "Desabilitado (Dispositivo Offline)";
+        labelStatusTrava.className = "text-[11px] font-semibold text-red-500";
+        labelModoAberto.innerText = "Desabilitado (Dispositivo Offline)";
+        labelModoAberto.className = "text-[11px] font-semibold text-red-500";
+      } else {
+        cardTrava.classList.remove('opacity-50');
+        cardModoAberto.classList.remove('opacity-50');
+        labelStatusTrava.innerText = switchTrava.checked ? "Estado: DESTRAVADA" : "Estado: TRAVADA";
+        labelStatusTrava.className = `text-xs font-bold ${switchTrava.checked ? 'text-emerald-600' : 'text-slate-600'}`;
+        labelModoAberto.innerText = switchModoAberto.checked ? "Livre" : "Bloqueado";
+        labelModoAberto.className = `text-xs font-bold ${switchModoAberto.checked ? 'text-emerald-600' : 'text-slate-600'}`;
+      }
     }
 
     // 3. RENDERIZAR E GERENCIAR TAGS
@@ -463,7 +521,7 @@
       });
     });
 
-    // Funções utilitárias de Data
+    // Utilitários de Data
     function formatarDataChave(str) {
       if (!str || str.length < 15) return str;
       const ano = str.substring(0, 4);
@@ -528,7 +586,6 @@
           status = "Liberado";
           corBadge = "bg-purple-100 text-purple-800";
         } else {
-          // TAG RFID
           uidOuEvento = restoChave.toUpperCase();
           
           if (mapaTagsCadastradas[uidOuEvento]) {
@@ -581,8 +638,14 @@
       });
     }
 
-    // 5. INTERRUPTORES
+    // 5. INTERRUPTORES COM VERIFICAÇÃO DE SEGURANÇA ONLINE
     switchTrava.addEventListener('change', () => {
+      if (!esp32EstaOnline) {
+        alert("Ação bloqueada: O ESP32 está OFFLINE no momento.");
+        switchTrava.checked = !switchTrava.checked;
+        return;
+      }
+
       const abrir = switchTrava.checked;
       const timestampChave = gerarDataChaveAtual();
 
@@ -607,6 +670,12 @@
     });
 
     switchModoAberto.addEventListener('change', () => {
+      if (!esp32EstaOnline) {
+        alert("Ação bloqueada: O ESP32 está OFFLINE no momento.");
+        switchModoAberto.checked = !switchModoAberto.checked;
+        return;
+      }
+
       const ativar = switchModoAberto.checked;
       const valor = ativar ? "enable" : "disable";
       const timestampChave = gerarDataChaveAtual();
